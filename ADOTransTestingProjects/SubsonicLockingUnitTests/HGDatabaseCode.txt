@@ -1,0 +1,340 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Data;
+using System.Data.SqlClient;
+using Microsoft.ApplicationBlocks.Data;
+
+namespace HydroGear.Utilities_v3
+{
+    public class Database : IDisposable
+    {
+
+        #region Members and Properties
+
+        protected string _DefaultConnection;
+
+        private bool IOwnTransaction = false;
+
+        protected enum eAppType
+        {
+            Web,
+            Forms
+        }
+
+        protected static eAppType AppType
+        {
+            get
+            {
+                // We need to know if the app is web or forms in order to choose between
+                //   HTTPContext and CallContext
+                if (System.Configuration.ConfigurationManager.AppSettings["AppType"] == null)
+                {   // Default to Web
+                    return eAppType.Web;
+                }
+                else
+                {
+                    string sAppType = System.Configuration.ConfigurationManager.AppSettings["AppType"].ToLower();
+
+                    switch (sAppType)
+                    {
+                        case "web":
+                            return eAppType.Web;
+
+                        case "forms":
+                            return eAppType.Forms;
+
+                        case "form":
+                            return eAppType.Forms;
+
+                    }
+
+                    // Default to Web
+                    return eAppType.Web;
+                }
+            }
+        }  
+        
+
+        #endregion
+
+        public string DefaultConnection()
+        {
+            return _DefaultConnection;
+        }
+
+        public SqlTransaction DefaultConnection(SqlTransaction trans)
+        {
+            return trans;
+        }
+
+        #region Trans Sensitive SQL Helper callers
+
+        public SqlDataReader ExecuteReaderTransSensitive(SqlTransaction trans, System.Data.CommandType commandType, string commandText, params SqlParameter[] parameterValues)
+        {
+            if (trans == null)
+            {
+                return SqlHelper.ExecuteReader(this.DefaultConnection(), commandType, commandText, parameterValues);
+            }
+            else
+            {
+                return SqlHelper.ExecuteReader(this.DefaultConnection(trans), commandType, commandText, parameterValues);
+            }
+        }
+
+        public SqlDataReader ExecuteReaderTransSensitive(SqlTransaction trans, System.Data.CommandType commandType, string commandText)
+        {
+            if (trans == null)
+            {
+                return SqlHelper.ExecuteReader(this.DefaultConnection(), commandType, commandText);
+            }
+            else
+            {
+                return SqlHelper.ExecuteReader(this.DefaultConnection(trans), commandType, commandText);
+            }
+        }
+
+        public void ExecuteScalarTransSensitive(SqlTransaction trans, System.Data.CommandType commandType, string commandText, params SqlParameter[] parameterValues)
+        {
+            if (trans == null)
+            {
+                SqlHelper.ExecuteScalar(this.DefaultConnection(), commandType, commandText, parameterValues);
+            }
+            else
+            {
+                SqlHelper.ExecuteScalar(this.DefaultConnection(trans), commandType, commandText, parameterValues);
+            }
+        }
+
+        public void ExecuteScalarTransSensitive(SqlTransaction trans, System.Data.CommandType commandType, string commandText)
+        {
+            if (trans == null)
+            {
+                SqlHelper.ExecuteScalar(this.DefaultConnection(), commandType, commandText);
+            }
+            else
+            {
+                SqlHelper.ExecuteScalar(this.DefaultConnection(trans), commandType, commandText);
+            }
+        }
+
+        public object ExecuteNonQueryTransSensitive(SqlTransaction trans, System.Data.CommandType commandType, string commandText)
+        {
+            if (trans == null)
+            {
+                return SqlHelper.ExecuteNonQuery(this.DefaultConnection(), commandType, commandText);
+            }
+            else
+            {
+                return SqlHelper.ExecuteNonQuery(this.DefaultConnection(trans), commandType, commandText);
+            }
+        }
+
+        public object ExecuteNonQueryTransSensitive(SqlTransaction trans, System.Data.CommandType commandType, string commandText, params SqlParameter[] parameterValues)
+        {
+            if (trans == null)
+            {
+                return SqlHelper.ExecuteNonQuery(this.DefaultConnection(), commandType, commandText, parameterValues);
+            }
+            else
+            {
+                return SqlHelper.ExecuteNonQuery(this.DefaultConnection(trans), commandType, commandText, parameterValues);
+            }
+        }
+        
+        
+        #endregion
+
+        #region Transactional Functions
+
+        public void CCTransBegin()
+        {
+
+            SqlConnection oConn = null;
+            SqlTransaction oTran;
+
+            try
+            {
+
+                if (CCTransRetrieve() != null)
+                {
+                    // If a tranaction is already underway, then there's no need to do anything
+                }
+                else
+                {
+                    // Otherwise, start a brand new transaction and put it on the thread
+
+                    oConn = new SqlConnection(_DefaultConnection);
+                    oConn.Open();
+                    oTran = oConn.BeginTransaction();
+
+                    this.IOwnTransaction = true;
+
+                    switch (AppType)
+                    {
+                        case eAppType.Web:
+                            System.Web.HttpContext.Current.Items.Add("CCTrans", oTran);
+                            break;
+                        case eAppType.Forms:
+                            System.Runtime.Remoting.Messaging.CallContext.SetData("CCTrans", oTran);
+                            break;
+                    }
+
+                }
+
+            }
+            catch (Exception ex)
+            {
+                if (oConn != null)
+                {
+                    if (oConn.State == ConnectionState.Open)
+                    {
+                        oConn.Close();
+                    }                
+                }
+
+                throw ex;
+            }
+            
+        }
+
+        public static System.Data.SqlClient.SqlTransaction CCTransRetrieve()
+        {
+            SqlTransaction tran = null;
+
+            switch (AppType)
+            {
+                case eAppType.Web:
+                    tran = (SqlTransaction)System.Web.HttpContext.Current.Items["CCTrans"];
+                    break;
+                case eAppType.Forms:
+                    tran = (SqlTransaction)System.Runtime.Remoting.Messaging.CallContext.GetData("CCTrans");
+                    break;
+            }
+
+            if (tran == null)
+            {
+                return null;
+            }
+            else
+            {
+                return (SqlTransaction)tran;
+            }
+        }
+
+        public void CCTransRollback()
+        {
+            // Note that this object doesn't have to "own" the transaction in order to rollback.
+            //   Any problem anywhere in a chain of transactions should cause a rollback.
+
+            if (CCTransRetrieve() == null)
+            {
+                throw new ApplicationException("CCTransRollback could not find a transaction");
+            }
+            else
+            {
+                SqlTransaction tran = CCTransRetrieve();
+                SqlConnection conn = tran.Connection;
+
+                if (conn != null)
+                {
+                    tran.Rollback();
+                }
+
+                if (conn != null)
+                {
+                    if (conn.State != ConnectionState.Closed)
+                    {
+                        conn.Close();
+                    }
+                }
+
+            }
+        }
+
+        public  void CCTransCommit()
+        {
+            if (IOwnTransaction)
+            {
+                // Only commit transactions that you started.  Can't commit otherwise, or else we'd screw
+                //   up transactions that are started in a nested way, when an existing transaction is already
+                //   under way.
+
+                if (CCTransRetrieve() == null)
+                {
+                    throw new ApplicationException("CCTransCommit could not find a transaction");
+                }
+                else
+                {
+                    SqlTransaction tran = CCTransRetrieve();
+                    SqlConnection conn = tran.Connection;
+
+                    tran.Commit();
+                    conn.Close();
+
+                }
+            }
+
+        }
+
+        #endregion
+
+
+        #region IDisposable Members
+
+        public void Dispose()
+        {
+            // Only clean up transactions that you started.  Can't clean up otherwise, or else we'd screw
+            //   up transactions that are started in a nested way, when an existing transaction is already
+            //   under way.
+
+            if (IOwnTransaction)
+            {
+                SqlTransaction tran = CCTransRetrieve();
+                SqlConnection conn = tran.Connection;
+
+                if (tran != null)
+                {
+                    try
+                    {
+                        if (conn != null)
+                        {
+                            tran.Rollback();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        throw ex;
+                    }
+                    finally
+                    {
+                        if (conn != null)
+                        {
+                            if (conn.State != ConnectionState.Closed)
+                            {
+                                conn.Close();
+                            }
+                        }
+
+                        // Added 1/5/2008
+                        // After a Commit or Rollback, it's important we clean out the now completed
+                        //   transaction
+                        switch (AppType)
+                        {
+                            case eAppType.Web:
+                                System.Web.HttpContext.Current.Items["CCTrans"] = null;
+                                break;
+                            case eAppType.Forms:
+                                System.Runtime.Remoting.Messaging.CallContext.SetData("CCTrans", null);
+                                break;
+                        }
+
+                    }
+                }
+            }
+        }
+
+        #endregion
+    }
+}

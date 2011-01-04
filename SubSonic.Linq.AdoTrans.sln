@@ -1,0 +1,78 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual Studio 2008
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SubSonic.Core", "SubSonic.Core\SubSonic.Core.csproj", "{53FF90B2-2D33-4EC0-91B6-A30FDF1B3374}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SubSonic.Tests", "SubSonic.Tests\SubSonic.Tests.csproj", "{6B23B65F-2E09-4531-BDA1-A6EA08CBA843}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SubSonic.Tests.Unit", "SubSonic.Tests.Unit\SubSonic.Tests.Unit.csproj", "{29F51F2F-115C-4AFE-85CB-1F34498C6AD3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PerfRunner", "PerfRunner\PerfRunner.csproj", "{45BA3F78-05F5-4344-AD0D-309F2AED9A0A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SubsonicLockingUnitTests", "ADOTransTestingProjects\SubsonicLockingUnitTests\SubsonicLockingUnitTests.csproj", "{B822CC8B-6852-49AD-B320-C0049AE45792}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SubsonicAddonSampleApp", "ADOTransTestingProjects\SubsonicAddonSampleApp\SubsonicAddonSampleApp.csproj", "{3201E9D1-F39B-47E0-9123-6E2D010B0569}"
+EndProject
+Project("{E24C65DC-7377-472B-9ABA-BC803B73C61A}") = "SubsonicLockingTest", "ADOTransTestingProjects\SubsonicLockingTest", "{92EA97CE-0C7C-4ED1-BAA7-23DC16B8505B}"
+	ProjectSection(WebsiteProperties) = preProject
+		TargetFramework = "3.5"
+		ProjectReferences = "{53FF90B2-2D33-4EC0-91B6-A30FDF1B3374}|SubSonic.Core.dll;"
+		Debug.AspNetCompiler.VirtualPath = "/SubsonicLockingTest"
+		Debug.AspNetCompiler.PhysicalPath = "ADOTransTestingProjects\SubsonicLockingTest\"
+		Debug.AspNetCompiler.TargetPath = "PrecompiledWeb\SubsonicLockingTest\"
+		Debug.AspNetCompiler.Updateable = "true"
+		Debug.AspNetCompiler.ForceOverwrite = "true"
+		Debug.AspNetCompiler.FixedNames = "false"
+		Debug.AspNetCompiler.Debug = "True"
+		Release.AspNetCompiler.VirtualPath = "/SubsonicLockingTest"
+		Release.AspNetCompiler.PhysicalPath = "ADOTransTestingProjects\SubsonicLockingTest\"
+		Release.AspNetCompiler.TargetPath = "PrecompiledWeb\SubsonicLockingTest\"
+		Release.AspNetCompiler.Updateable = "true"
+		Release.AspNetCompiler.ForceOverwrite = "true"
+		Release.AspNetCompiler.FixedNames = "false"
+		Release.AspNetCompiler.Debug = "False"
+		VWDPort = "53564"
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{53FF90B2-2D33-4EC0-91B6-A30FDF1B3374}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{53FF90B2-2D33-4EC0-91B6-A30FDF1B3374}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{53FF90B2-2D33-4EC0-91B6-A30FDF1B3374}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{53FF90B2-2D33-4EC0-91B6-A30FDF1B3374}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6B23B65F-2E09-4531-BDA1-A6EA08CBA843}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6B23B65F-2E09-4531-BDA1-A6EA08CBA843}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6B23B65F-2E09-4531-BDA1-A6EA08CBA843}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6B23B65F-2E09-4531-BDA1-A6EA08CBA843}.Release|Any CPU.Build.0 = Release|Any CPU
+		{29F51F2F-115C-4AFE-85CB-1F34498C6AD3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{29F51F2F-115C-4AFE-85CB-1F34498C6AD3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{29F51F2F-115C-4AFE-85CB-1F34498C6AD3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{29F51F2F-115C-4AFE-85CB-1F34498C6AD3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{45BA3F78-05F5-4344-AD0D-309F2AED9A0A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{45BA3F78-05F5-4344-AD0D-309F2AED9A0A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{45BA3F78-05F5-4344-AD0D-309F2AED9A0A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{45BA3F78-05F5-4344-AD0D-309F2AED9A0A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B822CC8B-6852-49AD-B320-C0049AE45792}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B822CC8B-6852-49AD-B320-C0049AE45792}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B822CC8B-6852-49AD-B320-C0049AE45792}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B822CC8B-6852-49AD-B320-C0049AE45792}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3201E9D1-F39B-47E0-9123-6E2D010B0569}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3201E9D1-F39B-47E0-9123-6E2D010B0569}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3201E9D1-F39B-47E0-9123-6E2D010B0569}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3201E9D1-F39B-47E0-9123-6E2D010B0569}.Release|Any CPU.Build.0 = Release|Any CPU
+		{92EA97CE-0C7C-4ED1-BAA7-23DC16B8505B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{92EA97CE-0C7C-4ED1-BAA7-23DC16B8505B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{92EA97CE-0C7C-4ED1-BAA7-23DC16B8505B}.Release|Any CPU.ActiveCfg = Debug|Any CPU
+		{92EA97CE-0C7C-4ED1-BAA7-23DC16B8505B}.Release|Any CPU.Build.0 = Debug|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		VisualSVNWorkingCopyRoot = .
+	EndGlobalSection
+EndGlobal
