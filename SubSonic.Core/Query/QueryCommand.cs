@@ -37,6 +37,7 @@ namespace SubSonic.Query
         public int Scale { get; set; }
         public int Precision { get; set; }
 
+
         /// <summary>
         /// Gets or sets the size.
         /// </summary>
@@ -167,6 +168,22 @@ namespace SubSonic.Query
     public class QueryCommand
     {
         private int commandTimeout = 60;
+
+
+        private SSTransaction _ssTransaction;
+        private SSTransaction ssTransaction
+        {
+            get
+            {
+                if (_ssTransaction == null)
+                {
+                    _ssTransaction = new SSTransaction();
+                }
+
+                return _ssTransaction;
+            }
+        }
+
 
         /// <summary>
         /// 
@@ -365,8 +382,12 @@ namespace SubSonic.Query
         {
             var connection = Provider.Factory.CreateConnection();
             connection.ConnectionString = Provider.ConnectionString;
+           
+            //var cmd = connection.CreateCommand();
 
-            var cmd = connection.CreateCommand();
+            AutomaticConnectionScope scope = new AutomaticConnectionScope(Provider);
+            var cmd = ssTransaction.GetTrannyCmd(scope);
+
             cmd.CommandText = CommandSql;
             cmd.CommandType = CommandType;
             cmd.CommandTimeout = commandTimeout;

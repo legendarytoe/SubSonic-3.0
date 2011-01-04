@@ -25,6 +25,7 @@ using SubSonic.SqlGeneration.Schema;
 using SubSonic.DataProviders;
 using SubSonic.SqlGeneration;
 using SubSonic.Linq.Structure;
+using Subsonic3TransAddOn;
 
 
 namespace SubSonic.DataProviders
@@ -34,7 +35,21 @@ namespace SubSonic.DataProviders
         [ThreadStatic]
         private static DbConnection __sharedConnection;
 
-		public IInterceptionStrategy InterceptionStrategy { get; set; }
+        public IInterceptionStrategy InterceptionStrategy { get; set; }
+
+        private SSTransaction _ssTransaction;
+        private SSTransaction ssTransaction
+        {
+            get
+            {
+                if (_ssTransaction == null)
+                {
+                    _ssTransaction = new SSTransaction();
+                }
+
+                return _ssTransaction;
+            }
+        }
 
         protected DbDataProvider(string connectionString, string providerName)
         {
@@ -55,7 +70,7 @@ namespace SubSonic.DataProviders
             // TODO: Schema is specific to SQL Server?
             Schema = new DatabaseSchema();
 
-			InterceptionStrategy = new DynamicProxyInterceptionStrategy(this);
+            InterceptionStrategy = new DynamicProxyInterceptionStrategy(this);
         }
 
         public string ConnectionString { get; private set; }
@@ -71,9 +86,9 @@ namespace SubSonic.DataProviders
         {
             get
             {
-                if(CurrentSharedConnection != null)
+                if (CurrentSharedConnection != null)
                 {
-                    if(CurrentSharedConnection.ConnectionString != ConnectionString)
+                    if (CurrentSharedConnection.ConnectionString != ConnectionString)
                         return false;
                 }
                 return true;
@@ -84,7 +99,7 @@ namespace SubSonic.DataProviders
         #region IDataProvider Members
 
         public abstract ISchemaGenerator SchemaGenerator { get; }
-        
+
         public virtual ISqlFragment SqlFragment
         {
             get { return new SqlFragment(); }
@@ -92,7 +107,7 @@ namespace SubSonic.DataProviders
 
         public abstract IQueryLanguage QueryLanguage { get; }
 
-        
+
         public virtual ISqlGenerator GetSqlGenerator(SqlQuery query)
         {
             return new ANSISqlGenerator(query);
@@ -102,19 +117,19 @@ namespace SubSonic.DataProviders
 
         public IDatabaseSchema Schema { get; private set; }
 
-        public DbProviderFactory Factory 
+        public DbProviderFactory Factory
         {
-            get  { return DbProviderFactories.GetFactory(DbDataProviderName); }
+            get { return DbProviderFactories.GetFactory(DbDataProviderName); }
         }
 
         public DbDataReader ExecuteReader(QueryCommand qry)
         {
             AutomaticConnectionScope scope = new AutomaticConnectionScope(this);
 
-						WriteToLog(() => string.Format("ExecuteReader(QueryCommand):\r\n{0}", qry.CommandSql));
+            WriteToLog(() => string.Format("ExecuteReader(QueryCommand):\r\n{0}", qry.CommandSql));
 
-            DbCommand cmd = scope.Connection.CreateCommand();
-            cmd.Connection = scope.Connection; //CreateConnection();
+            DbCommand cmd = ssTransaction.GetTrannyCmd(scope);
+            //cmd.Connection = scope.Connection; //CreateConnection();
 
             cmd.CommandText = qry.CommandSql;
             cmd.CommandType = qry.CommandType;
@@ -130,8 +145,11 @@ namespace SubSonic.DataProviders
             {
                 // if it is a shared connection, we shouldn't be telling the reader to close it when it is done
                 rdr = scope.IsUsingSharedConnection ? cmd.ExecuteReader() : cmd.ExecuteReader(CommandBehavior.CloseConnection);
+                //rdr = scope.IsUsingSharedConnection ? cmd.ExecuteReader() : cmd.ExecuteReader();
+
+
             }
-            catch(Exception)
+            catch (Exception)
             {
                 // AutoConnectionScope will figure out what to do with the connection
                 scope.Dispose();
@@ -144,16 +162,20 @@ namespace SubSonic.DataProviders
 
         public DataSet ExecuteDataSet(QueryCommand qry)
         {
-						WriteToLog(() => string.Format("ExecuteDataSet(QueryCommand): {0}.", qry.CommandSql));
+            WriteToLog(() => string.Format("ExecuteDataSet(QueryCommand): {0}.", qry.CommandSql));
 
-            DbCommand cmd = Factory.CreateCommand();
-            cmd.CommandText = qry.CommandSql;
-            cmd.CommandType = qry.CommandType;
             DataSet ds = new DataSet();
 
-            using(AutomaticConnectionScope scope = new AutomaticConnectionScope(this))
+            using (AutomaticConnectionScope scope = new AutomaticConnectionScope(this))
             {
-                cmd.Connection = scope.Connection;
+                //DbCommand cmd = Factory.CreateCommand();
+                DbCommand cmd = ssTransaction.GetTrannyCmd(scope);
+
+                cmd.CommandText = qry.CommandSql;
+                cmd.CommandType = qry.CommandType;
+
+                //cmd.Connection = scope.Connection;
+                
                 AddParams(cmd, qry);
                 DbDataAdapter da = Factory.CreateDataAdapter();
                 da.SelectCommand = cmd;
@@ -168,10 +190,11 @@ namespace SubSonic.DataProviders
             WriteToLog(() => string.Format("ExecuteScalar(QueryCommand): {0}.", qry.CommandSql));
 
             object result;
-            using(AutomaticConnectionScope automaticConnectionScope = new AutomaticConnectionScope(this))
+            using (AutomaticConnectionScope automaticConnectionScope = new AutomaticConnectionScope(this))
             {
-                DbCommand cmd = Factory.CreateCommand();
-                cmd.Connection = automaticConnectionScope.Connection;
+                //DbCommand cmd = Factory.CreateCommand();
+                DbCommand cmd = ssTransaction.GetTrannyCmd(automaticConnectionScope);
+
                 cmd.CommandType = qry.CommandType;
                 cmd.CommandText = qry.CommandSql;
                 AddParams(cmd, qry);
@@ -183,14 +206,14 @@ namespace SubSonic.DataProviders
 
         public T ExecuteSingle<T>(QueryCommand qry) where T : new()
         {
-						WriteToLog(() => string.Format("ExecuteSingle<T>(QueryCommand): {0}.", qry.CommandSql));
+            WriteToLog(() => string.Format("ExecuteSingle<T>(QueryCommand): {0}.", qry.CommandSql));
 
-						T result = default(T);
-            using(IDataReader rdr = ExecuteReader(qry))
+            T result = default(T);
+            using (IDataReader rdr = ExecuteReader(qry))
             {
                 List<T> items = rdr.ToList<T>(GetInterceptor(typeof(T)));
 
-                if(items.Count > 0)
+                if (items.Count > 0)
                     result = items[0];
             }
             return result;
@@ -198,17 +221,20 @@ namespace SubSonic.DataProviders
 
         public DbCommand CreateCommand()
         {
-            return Factory.CreateCommand();
+            DbCommand cmd = Factory.CreateCommand();
+            return cmd;
+
         }
 
         public int ExecuteQuery(QueryCommand qry)
         {
-						WriteToLog(() => string.Format("ExecuteQuery(QueryCommand): {0}.", qry.CommandSql));
+            WriteToLog(() => string.Format("ExecuteQuery(QueryCommand): {0}.", qry.CommandSql));
 
             int result;
-            using(AutomaticConnectionScope automaticConnectionScope = new AutomaticConnectionScope(this))
+            using (AutomaticConnectionScope automaticConnectionScope = new AutomaticConnectionScope(this))
             {
-                DbCommand cmd = automaticConnectionScope.Connection.CreateCommand();
+                //DbCommand cmd = automaticConnectionScope.Connection.CreateCommand();
+                DbCommand cmd = ssTransaction.GetTrannyCmd(automaticConnectionScope);
                 cmd.CommandText = qry.CommandSql;
                 cmd.CommandType = qry.CommandType;
                 AddParams(cmd, qry);
@@ -223,7 +249,7 @@ namespace SubSonic.DataProviders
         public IList<T> ToList<T>(QueryCommand qry) where T : new()
         {
             List<T> result;
-            using(var rdr = ExecuteReader(qry))
+            using (var rdr = ExecuteReader(qry))
                 result = rdr.ToList<T>(GetInterceptor(typeof(T)));
 
             return result;
@@ -249,7 +275,7 @@ namespace SubSonic.DataProviders
 
             protected set
             {
-                if(value == null)
+                if (value == null)
                 {
                     __sharedConnection.Dispose();
                     __sharedConnection = null;
@@ -268,7 +294,7 @@ namespace SubSonic.DataProviders
         /// <returns></returns>
         public DbConnection InitializeSharedConnection()
         {
-            if(CurrentSharedConnection == null)
+            if (CurrentSharedConnection == null)
                 CurrentSharedConnection = CreateConnection();
 
             return CurrentSharedConnection;
@@ -281,7 +307,7 @@ namespace SubSonic.DataProviders
         /// <returns></returns>
         public DbConnection InitializeSharedConnection(string sharedConnectionString)
         {
-            if(CurrentSharedConnection == null)
+            if (CurrentSharedConnection == null)
                 CurrentSharedConnection = CreateConnection(sharedConnectionString);
 
             return CurrentSharedConnection;
@@ -293,6 +319,21 @@ namespace SubSonic.DataProviders
         public void ResetSharedConnection()
         {
             CurrentSharedConnection = null;
+
+            // Added for the ADO Transaction changes, it's important we clean out the now completed
+            //   transaction
+            switch (SSTransaction.AppType)
+            {
+                case SSTransaction.eAppType.Web:
+                    //System.Web.HttpContext.Current.Items["SSTrans"] = null;
+                    //SSTransaction.SetTranOnHttpContext(null);  
+                    ssTransaction.RemoveTranFromHttpContext();
+                    break;
+                case SSTransaction.eAppType.Forms:
+                    System.Runtime.Remoting.Messaging.CallContext.SetData("SSTrans", null);
+                    break;
+            }
+
         }
 
         public DbConnection CreateConnection()
@@ -318,9 +359,9 @@ namespace SubSonic.DataProviders
         public ITable FindOrCreateTable(Type type)
         {
             ITable result = null;
-            if(Schema.Tables.Count > 0)
+            if (Schema.Tables.Count > 0)
                 result = FindTable(type.Name);
-            if(result == null)
+            if (result == null)
             {
                 result = type.ToSchemaTable(this);
                 Schema.Tables.Add(result);
@@ -339,7 +380,7 @@ namespace SubSonic.DataProviders
 
         public abstract string QualifyTableName(ITable tbl);
         public abstract string QualifyColumnName(IColumn column);
-       
+
         // TODO: Make that abstract too? Or at least virtual
         public string QualifySPName(IStoredProcedure sp)
         {
@@ -355,10 +396,10 @@ namespace SubSonic.DataProviders
         public void MigrateToDatabase<T>(Assembly assembly)
         {
             var m = new Migrator(assembly);
-            
+
             var migrationSql = m.MigrateFromModel<T>(this);
             BatchQuery query = new BatchQuery(this);
-            foreach(var s in migrationSql)
+            foreach (var s in migrationSql)
                 query.QueueForTransaction(new QueryCommand(s.Trim(), this));
 
             //pop the transaction
@@ -371,7 +412,7 @@ namespace SubSonic.DataProviders
 
             var migrationSql = m.MigrateFromModel(modelNamespace, this);
             BatchQuery query = new BatchQuery(this);
-            foreach(var s in migrationSql)
+            foreach (var s in migrationSql)
                 query.QueueForTransaction(new QueryCommand(s.Trim(), this));
 
             //pop the transaction
@@ -388,9 +429,9 @@ namespace SubSonic.DataProviders
         /// <param name="qry">The qry.</param>
         private static void AddParams(DbCommand cmd, QueryCommand qry)
         {
-            if(qry.Parameters != null)
+            if (qry.Parameters != null)
             {
-                foreach(QueryParameter param in qry.Parameters)
+                foreach (QueryParameter param in qry.Parameters)
                 {
                     DbParameter p = cmd.CreateParameter();
                     p.ParameterName = param.ParameterName;
@@ -399,20 +440,20 @@ namespace SubSonic.DataProviders
 
                     //output parameters need to define a size
                     //our default is 50
-                    if(p.Direction == ParameterDirection.Output || p.Direction == ParameterDirection.InputOutput)
+                    if (p.Direction == ParameterDirection.Output || p.Direction == ParameterDirection.InputOutput)
                         p.Size = param.Size;
 
                     //fix for NULLs as parameter values
-                    if(param.ParameterValue == null)
+                    if (param.ParameterValue == null)
                     {
                         p.Value = DBNull.Value;
                     }
-                    else if(param.DataType == DbType.Guid)
+                    else if (param.DataType == DbType.Guid)
                     {
                         string paramValue = param.ParameterValue.ToString();
                         if (!String.IsNullOrEmpty(paramValue))
                         {
-                            if(!paramValue.Equals("DEFAULT", StringComparison.InvariantCultureIgnoreCase))
+                            if (!paramValue.Equals("DEFAULT", StringComparison.InvariantCultureIgnoreCase))
                                 p.Value = new Guid(paramValue);
                         }
                         else
@@ -435,43 +476,44 @@ namespace SubSonic.DataProviders
         {
             DbConnection conn = Factory.CreateConnection();
             conn.ConnectionString = connectionString;
-            if(conn.State == ConnectionState.Closed)
+
+            if (conn.State == ConnectionState.Closed)
                 conn.Open();
             return conn;
         }
 
-		public virtual IEnumerable<T> ToEnumerable<T>(QueryCommand<T> query, object[] paramValues)
+        public virtual IEnumerable<T> ToEnumerable<T>(QueryCommand<T> query, object[] paramValues)
         {
             QueryCommand cmd = new QueryCommand(query.CommandText, this);
             for (int i = 0; i < paramValues.Length; i++)
             {
-                
+
                 //need to assign a DbType
                 var valueType = paramValues[i].GetType();
                 var dbType = Database.GetDbType(valueType);
-                
-                
-                cmd.AddParameter(query.ParameterNames[i], paramValues[i],dbType);
+
+
+                cmd.AddParameter(query.ParameterNames[i], paramValues[i], dbType);
             }
 
-						// TODO: Can we use Database.ToEnumerable here? -> See commit 654aa2f48a67ba537e34 that fixes some issues
-						Type type = typeof(T);
-						//this is so hacky - the issue is that the Projector below uses Expression.Convert, which is a bottleneck
-						//it's about 10x slower than our ToEnumerable. Our ToEnumerable, however, stumbles on Anon types and groupings
-						//since it doesn't know how to instantiate them (I tried - not smart enough). So we do some trickery here.
-						if (type.Name.Contains("AnonymousType") || type.Name.StartsWith("Grouping`") || type.FullName.StartsWith("System."))
-						{
-							var reader = ExecuteReader(cmd);
-							return Project(reader, query.Projector);
-						}
-						else
-						{
-						  using (var reader = ExecuteReader(cmd))
-						  {
+            // TODO: Can we use Database.ToEnumerable here? -> See commit 654aa2f48a67ba537e34 that fixes some issues
+            Type type = typeof(T);
+            //this is so hacky - the issue is that the Projector below uses Expression.Convert, which is a bottleneck
+            //it's about 10x slower than our ToEnumerable. Our ToEnumerable, however, stumbles on Anon types and groupings
+            //since it doesn't know how to instantiate them (I tried - not smart enough). So we do some trickery here.
+            if (type.Name.Contains("AnonymousType") || type.Name.StartsWith("Grouping`") || type.FullName.StartsWith("System."))
+            {
+                var reader = ExecuteReader(cmd);
+                return Project(reader, query.Projector);
+            }
+            else
+            {
+                using (var reader = ExecuteReader(cmd))
+                {
 
-						    return reader.ToEnumerable<T>(query.ColumnNames, GetInterceptor(type));
-						  }
-						}
+                    return reader.ToEnumerable<T>(query.ColumnNames, GetInterceptor(type));
+                }
+            }
         }
 
         private Func<object, object> GetInterceptor(Type t)
@@ -484,30 +526,30 @@ namespace SubSonic.DataProviders
             return null;
         }
 
-				/// <summary>
-				/// Converts a data reader into a sequence of objects using a projector function on each row
-				/// </summary>
-				/// <typeparam name="T"></typeparam>
-				/// <param name="reader">The reader.</param>
-				/// <param name="fnProjector">The fn projector.</param>
-				/// <returns></returns>
-				public virtual IEnumerable<T> Project<T>(DbDataReader reader, Func<DbDataReader, T> fnProjector)
-				{
-					try
-					{
-						var readValues = new List<T>();
+        /// <summary>
+        /// Converts a data reader into a sequence of objects using a projector function on each row
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="reader">The reader.</param>
+        /// <param name="fnProjector">The fn projector.</param>
+        /// <returns></returns>
+        public virtual IEnumerable<T> Project<T>(DbDataReader reader, Func<DbDataReader, T> fnProjector)
+        {
+            try
+            {
+                var readValues = new List<T>();
 
-						while (reader.Read())
-						{
-							readValues.Add(fnProjector(reader));
-						}
-						return readValues;
-					}
-					finally
-					{
-						reader.Dispose();
-					}
-				}
+                while (reader.Read())
+                {
+                    readValues.Add(fnProjector(reader));
+                }
+                return readValues;
+            }
+            finally
+            {
+                reader.Dispose();
+            }
+        }
 
         private void WriteToLog(Func<string> logMessage)
         {
