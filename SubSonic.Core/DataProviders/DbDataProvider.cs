@@ -25,7 +25,6 @@ using SubSonic.SqlGeneration.Schema;
 using SubSonic.DataProviders;
 using SubSonic.SqlGeneration;
 using SubSonic.Linq.Structure;
-using Subsonic3TransAddOn;
 
 
 namespace SubSonic.DataProviders
